@@ -9,6 +9,7 @@ from starlette.responses import Response, StreamingResponse
 from starlette.requests import Request
 import uvicorn
 import argparse
+from pydantic import BaseModel, Field, ValidationError
 
 
 class BaseTool(ABC):
@@ -304,32 +305,34 @@ class MCPServer:
 class ExampleTool(BaseTool):
     """Example tool implementation."""
     
+    class InputSchema(BaseModel):
+        message: str = Field(description="Message to echo back")
+    
     def __init__(self):
         super().__init__(
             name="example_tool",
             description="An example tool that echoes back the input",
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "message": {
-                        "type": "string",
-                        "description": "Message to echo back"
-                    }
-                },
-                "required": ["message"]
-            }
+            input_schema=self.InputSchema.model_json_schema()
         )
+    
+    def validate_input(self, arguments: Dict[str, Any]) -> 'ExampleTool.InputSchema':
+        """Validate and parse input arguments using Pydantic model."""
+        try:
+            return self.InputSchema(**arguments)
+        except ValidationError as e:
+            raise ValueError(f"Input validation error: {e}")
     
     async def execute(self, arguments: Dict[str, Any]) -> List[types.TextContent]:
         """Execute the example tool."""
-        message = arguments.get("message")
-        if not message:
-            raise ValueError("Missing required argument: message")
+        try:
+            validated_input = self.validate_input(arguments)
+        except ValueError as e:
+            return e
         
         return [
             types.TextContent(
                 type="text",
-                text=f"Echo: {message}"
+                text=f"Echo: {validated_input.message}"
             )
         ]
 

@@ -1,3 +1,4 @@
 mcp
 starlette
 uvicorn[standard]
+pydantic
